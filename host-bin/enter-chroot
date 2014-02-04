@@ -500,6 +500,8 @@ else
         # as these are set by /etc/pam.d/su .
         if grep -q "ID=arch" "$CHROOT/etc/os-release"; then
             cmd="$cmd . /etc/profile;"
+        elif grep -q "ID=manjaro" "$CHROOT/etc/os-release"; then
+            cmd="$cmd . /etc/profile;"
         fi
 
         for param in "$@"; do
