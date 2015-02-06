@@ -44,20 +44,20 @@ Options:
 . "$BINDIR/../installer/functions"
 
 # Process arguments
-while getopts 'ac:fkpt:xy' f; do
-    case "$f" in
+getopts_string='ac:fkpt:xy'
+while getopts_nextarg; do
+    case "$getopts_var" in
     a) ALLCHROOTS='y';;
-    c) CHROOTS="`readlink -m "$OPTARG"`"; CHROOTSSET='y';;
+    c) CHROOTS="`readlink -m -- "$getopts_arg"`"; CHROOTSSET='y';;
     f) FORCE='y';;
     k) SIGNAL="KILL";;
     p) PRINT='y';;
-    t) TRIES="$OPTARG";;
+    t) TRIES="$getopts_arg";;
     x) EXCLUDEROOT='y';;
     y) YES='a';;
     \?) error 2 "$USAGE";;
     esac
 done
-shift "$((OPTIND-1))"
 
 # Need at least one chroot listed, or -a; not both.
 if [ $# = 0 -a -z "$ALLCHROOTS" ] || [ ! $# = 0 -a -n "$ALLCHROOTS" ]; then
