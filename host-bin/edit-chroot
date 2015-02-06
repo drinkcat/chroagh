@@ -10,6 +10,8 @@ ALLCHROOTS=''
 BACKUP=''
 BINDIR="`dirname "\`readlink -f "$0"\`"`"
 CHROOTS="`readlink -m "$BINDIR/../chroots"`"
+CHROOTSSET=''
+MOUNTPOINT='/var/crouton'
 DELETE=''
 ENCRYPT=''
 KEYFILE=''
@@ -77,7 +79,7 @@ while getopts_nextarg; do
     case "$getopts_var" in
     a) ALLCHROOTS='y';;
     b) BACKUP='y'; NEEDS_UNMOUNT='y';;
-    c) CHROOTS="`readlink -m -- "$getopts_arg"`";;
+    c) CHROOTS="`readlink -m -- "$getopts_arg"`"; CHROOTSSET='y';;
     d) DELETE='y'; NEEDS_UNMOUNT='y';;
     e) ENCRYPT='y'; NEEDS_UNMOUNT='y';;
     f) TARBALL="$getopts_arg";;
@@ -195,6 +197,13 @@ Otherwise: HIT CTRL-C RIGHT NOW > ' 1>&2
     sleep 15
     echo \
 '...okay. Be sure to put the keyfile somewhere safe before you reboot.' 1>&2
+fi
+
+# Try to mount the crouton partition if it exists, CHROOTS has not been set
+# manually, and this script base directory is /usr/local/bin.
+if [ -z "$CHROOTSSET" -a "$BINDIR" = "/usr/local/bin" ] && \
+        mountcrouton "$MOUNTPOINT"; then
+    CHROOTS="$MOUNTPOINT/chroots"
 fi
 
 # If we're restoring and specified a tarball and no name, detect the name.
