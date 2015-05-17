@@ -108,6 +108,8 @@ install xorg arch=,xserver-xorg-video-fbdev$ltspackages
 if [ "${ARCH#arm}" = "$ARCH" ]; then
     install arch=,xserver-xorg-video-intel$ltspackages
 fi
+# JMT: eventually wrap this removal with an appropriate test
+remove xf86-video-odroid-c1
 
 # This is a system with framebuffer compression, so we need SNA+tearfree
 xorgconf='/usr/share/X11/xorg.conf.d/20-crouton-intel-sna.conf'

@@ -68,7 +68,7 @@ install_dummy_dist() {
 # remove_dist: see remove() in prepare.sh for details.
 remove_dist() {
     if [ "$#" -gt 0 ]; then
-        pacman -R "$@"
+        pacman -R --noconfirm "$@"
     fi
 }
 
