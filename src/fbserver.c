@@ -1,4 +1,4 @@
-/* Copyright (c) 2014 The crouton Authors. All rights reserved.
+/* Copyright (c) 2015 The crouton Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  *
@@ -15,6 +15,7 @@
 #include <sys/mman.h>
 #include <netinet/tcp.h>
 #include <X11/extensions/XTest.h>
+#include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <sys/shm.h>
@@ -99,7 +100,28 @@ void kb_release_all() {
 /* X11-related functions */
 
 static int xerror_handler(Display *dpy, XErrorEvent *e) {
+    if (verbose < 1)
+        return 0;
+    char msg[64] = {0};
+    char op[32] = {0};
+    sprintf(msg, "%d", e->request_code);
+    XGetErrorDatabaseText(dpy, "XRequest", msg, "", op, sizeof(op));
+    XGetErrorText(dpy, e->error_code, msg, sizeof(msg));
+    error("%s (%s)", msg, op);
     return 0;
+}
+
+/* Sets the CROUTON_CONNECTED property for the root window */
+static void set_connected(Display *dpy, uint8_t connected) {
+    Window root = DefaultRootWindow(dpy);
+    Atom prop = XInternAtom(dpy, "CROUTON_CONNECTED", False);
+    if (prop == None) {
+        error("Unable to get atom");
+        return;
+    }
+    XChangeProperty(dpy, root, prop, XA_INTEGER, 8, PropModeReplace,
+                    &connected, 1);
+    XFlush(dpy);
 }
 
 /* Registers XDamage events for a given Window. */
@@ -243,7 +265,7 @@ struct cache_entry* find_shm(uint64_t paddr, uint64_t sig, size_t length) {
             if (*((uint64_t*)entry->map) == sig)
                 return entry;
 
-            error("Invalid signature, fetching new shm!");
+            log(1, "Invalid signature, fetching new shm!");
             close_mmap(entry);
         }
 
@@ -378,9 +400,11 @@ int write_image(const struct screen* screen) {
     reply->cursor_updated = 0;
     while (XCheckTypedEvent(dpy, fixesEvent + XFixesCursorNotify, &ev)) {
         XFixesCursorNotifyEvent* curev = (XFixesCursorNotifyEvent*)&ev;
-        char* name = XGetAtomName(dpy, curev->cursor_name);
-        log(2, "cursor! %ld %s", curev->cursor_serial, name);
-        XFree(name);
+        if (verbose >= 2) {
+            char* name = XGetAtomName(dpy, curev->cursor_name);
+            log(2, "cursor! %ld %s", curev->cursor_serial, name);
+            XFree(name);
+        }
         reply->cursor_updated = 1;
         reply->cursor_serial = curev->cursor_serial;
     }
@@ -438,6 +462,10 @@ int write_image(const struct screen* screen) {
 /* Writes cursor image to websocket */
 int write_cursor() {
     XFixesCursorImage *img = XFixesGetCursorImage(dpy);
+    if (!img) {
+        error("XFixesGetCursorImage returned NULL");
+        return -1;
+    }
     int size = img->width*img->height;
     const int replylength = sizeof(struct cursor_reply) + size*sizeof(uint32_t);
     char reply_raw[FRAMEMAXHEADERSIZE + replylength];
@@ -461,6 +489,18 @@ int write_cursor() {
     XFree(img);
 
     return 0;
+}
+
+void write_init() {
+    char raw[FRAMEMAXHEADERSIZE + sizeof(struct initinfo)];
+    struct initinfo* i = (struct initinfo*)(raw + FRAMEMAXHEADERSIZE);
+    i->type = 'I';
+    i->freon = 0;
+    if (access("/sys/class/tty/tty0/active", F_OK) == -1) {
+        trueorabort(errno == ENOENT, "Could not determine if using Freon or not");
+        i->freon = 1;
+    }
+    socket_client_write_frame(raw, sizeof(*i), WS_OPCODE_BINARY, 1);
 }
 
 /* Checks if a packet size is correct */
@@ -510,7 +550,10 @@ int main(int argc, char** argv) {
     int length;
 
     while (1) {
+        set_connected(dpy, False);
         socket_server_accept(VERSION);
+        write_init();
+        set_connected(dpy, True);
         while (1) {
             length = socket_client_read_frame((char*)buffer, sizeof(buffer));
             if (length < 0) {

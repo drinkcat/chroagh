@@ -1,5 +1,5 @@
 #!/bin/sh -e
-# Copyright (c) 2014 The crouton Authors. All rights reserved.
+# Copyright (c) 2015 The crouton Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -129,6 +129,14 @@ install_pkg() {
 }
 
 
+# install_dummy: Installs a dummy package that resolves dependencies. The
+# parameters are a list of crouton-style package names to "install", optionally
+# followed by -- and the packages it depends on.
+install_dummy() {
+    install_dummy_dist `distropkgs "$@"`
+}
+
+
 # remove: Removes the specified packages. See distropkgs() for package syntax.
 remove() {
     remove_dist `distropkgs "$@"`
@@ -176,19 +184,27 @@ fixkeyboardmode() {
 # stdin to the specified output and strips it. Finally, removes whatever it
 # installed. This allows targets to provide on-demand binaries without
 # increasing the size of the chroot after install.
-# $1: name; target is /usr/local/bin/crouton$1
+# $1: name; target is /usr/local/(bin|lib)/crouton$1[.so]
 # $2: linker flags, quoted together
+# [$3]: if 'so', compiles as a shared object and installs it into lib
 # $3+: any package dependencies other than gcc and libc-dev, crouton-style.
 compile() {
-    local out="/usr/local/bin/crouton$1" linker="$2"
-    echo "Installing dependencies for $out..." 1>&2
+    local out="/usr/local/bin/crouton$1"
+    local linker="$2"
+    local cflags='-xc -Os'
+    if [ "$3" = 'so' ]; then
+        out="/usr/local/lib/crouton$1.so"
+        cflags="$cflags -shared -fPIC"
+        shift 1
+    fi
     shift 2
+    echo "Installing dependencies for $out..." 1>&2
     local pkgs="gcc arch=,libc6-dev $*"
     install --minimal --asdeps $pkgs </dev/null
     echo "Compiling $out..." 1>&2
     local tmp="`mktemp crouton.XXXXXX --tmpdir=/tmp`"
     addtrap "rm -f '$tmp'"
-    gcc -xc -Os - $linker -o "$tmp"
+    gcc $cflags - $linker -o "$tmp"
     /usr/bin/install -sDT "$tmp" "$out"
 }
 

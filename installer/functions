@@ -1,5 +1,5 @@
 #!/bin/sh -e
-# Copyright (c) 2014 The crouton Authors. All rights reserved.
+# Copyright (c) 2015 The crouton Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 #
@@ -209,6 +209,15 @@ getmountpoint() {
     while ! stat -c '%m' "${mp:-/}" 2>/dev/null; do
         mp="${mp%/*}"
     done
+}
+
+# Echos to stderr, or /dev/tty if stdin is a tty but stderr is not
+echo_tty() {
+    if [ -t 0 -a ! -t 2 ]; then
+        echo "$@" 1>/dev/tty
+    else
+        echo "$@" 1>&2
+    fi
 }
 
 # Websocket interface

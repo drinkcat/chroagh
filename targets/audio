@@ -1,9 +1,11 @@
 #!/bin/sh -e
-# Copyright (c) 2014 The crouton Authors. All rights reserved.
+# Copyright (c) 2015 The crouton Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 REQUIRES='core'
 DESCRIPTION='Support audio playback via Chromium OS'\''s audio system.'
+CHROOTBIN='volume'
+CHROOTETC='pulseaudio-default.pa'
 . "${TARGETSDIR:="$PWD"}/common"
 
 ### Append to prepare.sh:
@@ -125,21 +127,26 @@ build_cras() {
     local pkgconfigpath=''
     local archgccflags=''
     if [ -n "$cras_arch" ]; then
-        if [ "${DISTROAKA:-"$DISTRO"}" = 'debian' ]; then
-            pkgaffix=":$cras_arch"
-            pkgdepextra='gcc-multilib'
-            # Add foreign architecture, if necessary
-            if ! dpkg --print-foreign-architectures | grep -q "^$cras_arch$"; then
-		echo "Adding foreign architecture $cras_arch to dpkg..." 1>&2
-		dpkg --add-architecture "$cras_arch"
-		apt-get update
-            fi
-            pkgconfigpath="/usr/lib/$cras_arch-linux-gnu/pkgconfig"
-        elif [ "${DISTROAKA:-"$DISTRO"}" = 'arch' ]; then
-            pkgaffix="lib32-"
-            pkgconfigpath="/usr/lib32/pkgconfig"
+      if [ "${DISTROAKA:-"$DISTRO"}" = 'debian' ]; then
+        pkgsuffix=":$cras_arch"
+        pkgdepextra='gcc-multilib'
+        archextrapath="/$cras_arch-linux-gnu"
+        pkgconfigpath="/usr/lib$archextrapath/pkgconfig"
+        # archgccflags='-m32'
+
+        # Add foreign architecture, if necessary
+        if ! dpkg --print-foreign-architectures | grep -q "^$cras_arch$"; then
+            echo "Adding foreign architecture $cras_arch to dpkg..." 1>&2
+            dpkg --add-architecture "$cras_arch"
+            apt-get update || true
         fi
-        archgccflags='-m32'
+
+      elif [ "${DISTROAKA:-"$DISTRO"}" = 'arch' ]; then
+        pkgsuffix="lib32-"
+        pkgconfigpath="/usr/lib32/pkgconfig"
+      fi
+
+      archgccflags='-m32'
     fi
 
     # Install CRAS dependencies

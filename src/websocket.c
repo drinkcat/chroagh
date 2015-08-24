@@ -1,4 +1,4 @@
-/* Copyright (c) 2014 The crouton Authors. All rights reserved.
+/* Copyright (c) 2015 The crouton Authors. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  *
@@ -378,6 +378,9 @@ static int socket_client_handle_unrequested(const char* buffer,
                     return -1;
                 }
                 replylength += n;
+            } else if (param[0] == 'O') {
+                /* Extra OK response from a C back-and-forth. Disregard. */
+                break;
             } else {
                 /* Launch command in background (this is necessary as
                    croutoncycle may send a websocket command, leaving us

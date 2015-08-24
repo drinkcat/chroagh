@@ -1,23 +1,35 @@
 #!/bin/sh -e
-# Copyright (c) 2014 The crouton Authors. All rights reserved.
+# Copyright (c) 2015 The crouton Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 REQUIRES='audio extension'
 PROVIDES='x11'
 DESCRIPTION='X.org X11 backend running unaccelerated in a Chromium OS window.'
-CHROOTBIN='croutoncycle croutonfindnacl croutonxinitrc-wrapper setres xinit'
-CHROOTETC='xbindkeysrc.scm xorg-dummy.conf xserverrc xserverrc-xiwi xserverrc-local.example'
+HOSTBIN='startxiwi'
+CHROOTBIN='croutoncycle croutonfindnacl croutontriggerd croutonxinitrc-wrapper setres xinit xiwi'
+CHROOTETC='xbindkeysrc.scm xiwi.conf xorg-dummy.conf xserverrc xserverrc-xiwi xserverrc-local.example'
 . "${TARGETSDIR:="$PWD"}/common"
 
 ### Append to prepare.sh:
 XMETHOD="${XMETHOD:-xiwi}"
 
-# Unhold xserver-xorg-video-dummy to make sure deps are pulled in
-if [ "${DISTROAKA:-"$DISTRO"}" = 'debian' ]; then
-    apt-mark unhold xserver-xorg-video-dummy || true 2>/dev/null
+ltspackages=''
+# On non-ARM precise, install lts-trusty xorg server for compatibility with xorg
+# if kernel version != 3.4 (lts-trusty mesa requires version >=3.6)
+if [ "${ARCH#arm}" = "$ARCH" ] && release -eq precise \
+        && ! uname -r | grep -q "^3.4."; then
+    # We still install xorg later to pull in its dependencies
+    ltspackages='-lts-trusty'
+    install --minimal "xserver-xorg$ltspackages" "libgl1-mesa-glx$ltspackages"
 fi
 
-install xorg arch=xf86-video-dummy,xserver-xorg-video-dummy
+# Unhold xserver-xorg-video-dummy to make sure deps are pulled in
+if [ "${DISTROAKA:-"$DISTRO"}" = 'debian' ]; then
+    apt-mark unhold xserver-xorg-video-dummy$ltspackages || true 2>/dev/null
+fi
+
+install xorg arch=xf86-video-dummy,xserver-xorg-video-dummy$ltspackages
+install --minimal arch=i3-wm,i3
 
 # Compile croutonfbserver
 compile fbserver '-lX11 -lXfixes -lXdamage -lXext -lXtst' \
@@ -40,8 +52,8 @@ echo "Download Xorg dummy driver..." 1>&2
 
 wget -O "$DUMMYBUILDTMP/dummy.tar.gz" "$urlbase/xf86-video-dummy-0.3.7.tar.gz"
 
-install --minimal --asdeps patch gcc arch=,libc-dev pkg-config \
-    arch=xorg-server-devel,xserver-xorg-dev arch=,x11proto-xf86dga-dev
+install --minimal --asdeps patch gcc arch=glibc,libc-dev pkg-config \
+    arch=xorg-server-devel,xserver-xorg-dev$ltspackages arch=,x11proto-xf86dga-dev
 
 (
     cd "$DUMMYBUILDTMP"
@@ -384,7 +396,7 @@ EOF
 
 if [ "${DISTROAKA:-"$DISTRO"}" = 'debian' ]; then
     # Hold xserver-xorg-video-dummy to make sure the driver does not get erased
-    apt-mark hold xserver-xorg-video-dummy
+    apt-mark hold xserver-xorg-video-dummy$ltspackages
 elif [ "${DISTROAKA:-"$DISTRO"}" = 'arch' ]; then
     # FIXME: Add a hold/unhold function
     # Make sure xf86-video-dummy does not get updated
@@ -399,6 +411,11 @@ TIPS="$TIPS"'
 You can open your running chroot desktops by clicking on the extension icon.
 Once in a crouton window, press fullscreen or the "switch window" key to switch
 back to Chromium OS.
+
+You can launch individual apps in crouton windows by using the "xiwi" command
+in the chroot shell. Use startxiwi to launch directly from the host shell.
+Use the startxiwi parameter -b to run in the background.
+Example: sudo startxiwi -b xterm
 '
 
 ### append x11-common

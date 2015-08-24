@@ -1,5 +1,5 @@
 #!/bin/sh -e
-# Copyright (c) 2014 The crouton Authors. All rights reserved.
+# Copyright (c) 2015 The crouton Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 REQUIRES='x11'
@@ -7,9 +7,14 @@ DESCRIPTION='GTK-based tools including gdebi, gksu, and a simple browser.'
 . "${TARGETSDIR:="$PWD"}/common"
 
 ### Append to prepare.sh:
+#JOEL: Ignored from "avoid network-manager issues on gtk desktop targets"
+#install_dummy network-manager network-manager-gnome
 install arch=,gdebi arch=,gksu arch=netsurf,netsurf-gtk
 
+
+
 if [ "${DISTROAKA:-"$DISTRO"}" = 'debian' ]; then
+    install_dummy network-manager network-manager-gnome
     # Add netsurf-gtk to Debian-alternatives if not already there
     netsurf='/usr/bin/netsurf-gtk'
     for link in x-www-browser gnome-www-browser; do

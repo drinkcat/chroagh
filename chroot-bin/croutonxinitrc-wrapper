@@ -1,5 +1,5 @@
 #!/bin/sh -e
-# Copyright (c) 2014 The crouton Authors. All rights reserved.
+# Copyright (c) 2015 The crouton Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -43,6 +43,10 @@ else
 fi
 
 # Run crouton-specific commands:
+
+# Show chroot specifics for troubleshooting
+croutonversion 1>&2
+
 if [ -z "$XMETHOD" ]; then
     if [ -f '/etc/crouton/xmethod' ]; then
         read -r XMETHOD _ < /etc/crouton/xmethod
@@ -52,6 +56,8 @@ if [ -z "$XMETHOD" ]; then
         exit 1
     fi
 fi
+xmethodtype="${XMETHOD%%-*}"
+xmethodargs="${XMETHOD#*-}"
 
 # Record the name of the chroot in the root window properties
 if [ -f '/etc/crouton/name' ] && hash xprop 2>/dev/null; then
@@ -70,7 +76,7 @@ if hash croutonclip 2>/dev/null; then
 fi
 
 # Pass through the host cursor and correct mousewheels on xephyr
-if [ "$XMETHOD" = 'xephyr' ]; then
+if [ "$xmethodtype" = 'xephyr' ]; then
     host-x11 croutoncursor "$DISPLAY" &
     if [ -z "$CROUTON_WHEEL_PARAMS" -a -r "$HOME/.croutonwheel" ]; then
         CROUTON_WHEEL_PARAMS="`head -n1 "$HOME/.croutonwheel"`"
@@ -78,25 +84,23 @@ if [ "$XMETHOD" = 'xephyr' ]; then
     croutonwheel $CROUTON_WHEEL_PARAMS &
 fi
 
-# xbindkeys and other input-related apps are not needed for kiwi
-if [ "$XMETHOD" != "xiwi" ]; then
+# Launch system-wide trigger daemon
+croutontriggerd &
+
+
+# Apply the Chromebook keyboard map. Not needed for non-Freon xiwi.
+if [ "$xmethodtype" != 'xiwi' -o ! -f "/sys/class/tty/tty0/active" ]; then
     # Apply the Chromebook keyboard map if installed.
     if [ -f '/usr/share/X11/xkb/compat/chromebook' ]; then
         setxkbmap -model chromebook
     fi
+fi
 
-    # Launch key binding daemon
+# Input-related stuff is not needed for kiwi
+if [ "$xmethodtype" != "xiwi" ]; then
+
+    # Launch X-server-local key binding daemon
     xbindkeys -fg /etc/crouton/xbindkeysrc.scm
-
-    # Launch xbindkeys for the Chromium OS X server if it isn't running
-    mkdir -m 775 -p /tmp/crouton-lock
-    {
-        # Only let one instance *really* run at a time
-        flock 3
-        XMETHOD='' host-x11 xbindkeys -n -fg /etc/crouton/xbindkeysrc.scm &
-        trap "kill '$!' 2>/dev/null" HUP INT TERM
-        wait "$!" || true
-    } 3>/tmp/crouton-lock/xbindkeys &
 
     # Launch touchegg if it is requested.
     toucheggconf='/etc/touchegg.conf'
@@ -128,7 +132,7 @@ if [ "$XMETHOD" != "xiwi" ]; then
 fi
 
 # Crouton-in-a-tab: Start fbserver and launch display
-if [ "$XMETHOD" = 'xiwi' ]; then
+if [ "$xmethodtype" = 'xiwi' ]; then
     # The extension sends evdev key codes: fix the keyboard mapping rules
     setxkbmap -rules evdev
     # Reapply xkb map: This fixes autorepeat mask in "xset q"
@@ -153,7 +157,7 @@ and enabled, and up to date. (download from http://goo.gl/OVQOEt)" 1>&2
         try="$((try+1))"
     done
     if [ "$ret" -eq 0 ]; then
-        echo "Connected to extension, launched crouton in a tab window." 1>&2
+        echo "Connected to extension, launched crouton in a window." 1>&2
     fi
 fi
 
@@ -179,14 +183,5 @@ fi
 # Run crouton-specific commands before the server exits:
 
 echo "Running exit commands..." 1>&2
-
-# Restore framebuffer compression if there are no other non-Chromium X servers
-fbc='/sys/module/i915/parameters/i915_enable_fbc'
-if [ -w "$fbc" ]; then
-    # There is at least 2 servers running (the current one and Chromium OS)
-    if [ "`ps -CX -CXorg -CXephyr -opid= | wc -l`" -le 2 ]; then
-        echo 1 > "$fbc"
-    fi
-fi
 
 exit "$ret"

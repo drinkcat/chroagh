@@ -1,5 +1,5 @@
 #!/bin/sh -e
-# Copyright (c) 2014 The crouton Authors. All rights reserved.
+# Copyright (c) 2015 The crouton Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -51,6 +51,54 @@ install_pkg_dist() {
         dpkg --force-depends -i "$@"
     fi
     apt-get -fy $params install
+}
+
+
+# install_dummy_dist: see install_dummy() in prepare.sh for details.
+install_dummy_dist() {
+    if [ "$#" = 0 ]; then
+        return
+    fi
+    local pkgname="crouton-$1" pkgprovides="$1"
+    shift
+    while [ "$#" != 0 ]; do
+        if [ "$1" = '--' ]; then
+            shift
+            break
+        fi
+        pkgprovides="$pkgprovides, $1"
+        shift
+    done
+    local pkgdepends="$1"
+    if [ "$#" != 0 ]; then
+        shift
+        while [ "$#" != 0 ]; do
+            pkgdepends="$pkgdepends, $1"
+            shift
+        done
+    fi
+    local tmp="`mktemp -d crouton.XXXXXX --tmpdir=/tmp`"
+    addtrap "rm -rf '$tmp'"
+    cat > "$tmp/control" <<EOF
+Package: $pkgname
+Version: 0
+Architecture: all
+Maintainer: crouton
+Installed-Size: 0
+Provides: $pkgprovides
+Depends: $pkgdepends
+Section: misc
+Priority: optional
+Description: Provides a dummy ${pkgname#*-} for crouton
+EOF
+    touch "$tmp/md5sums"
+    echo '2.0' > "$tmp/debian-binary"
+    tar -czf "$tmp/control.tar.gz" -C "$tmp" control md5sums
+    tar -cf "$tmp/data.tar" -T /dev/null
+    ar r "$tmp/$pkgname.deb" \
+        "$tmp/debian-binary" "$tmp/control.tar.gz" "$tmp/data.tar"
+    dpkg -i --force-depends "$tmp/$pkgname.deb"
+    apt-get -fy install
 }
 
 
