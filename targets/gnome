@@ -8,10 +8,10 @@ HOSTBIN='startgnome'
 CHROOTBIN='crouton-noroot startgnome gnome-session-wrapper'
 . "${TARGETSDIR:="$PWD"}/common"
 
-if release -ge wheezy -ge kali -ge trusty; then
-  legacy_session_package="gnome-session-flashback"
-else
+if release -lt jessie -lt sana -lt trusty; then
   legacy_session_package="gnome-session-fallback"
+else
+  legacy_session_package="gnome-session-flashback"
 fi
 
 ### Append to prepare.sh:
