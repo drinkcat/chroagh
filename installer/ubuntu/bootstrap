@@ -9,8 +9,7 @@
 # from $RELEASE), $ARCH, and $MIRROR.
 
 # Grab a known good release of debootstrap
-# TODO(#3713): Figure out why >= 1.0.92~bpo9+1 is broken
-debootstrap_version="1.0.92~bpo9+1"
+debootstrap_version="1.0.95"
 
 echo "Downloading debootstrap ${debootstrap_version}..." 1>&2
 if [ "${debootstrap_version}" = "HEAD" ]; then
