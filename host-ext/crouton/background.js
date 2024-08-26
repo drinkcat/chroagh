@@ -704,7 +704,7 @@ chrome.runtime.onInstalled.addListener(function(details) {
 
 /* Initialize, taking into account the platform */
 chrome.runtime.getPlatformInfo(function(platforminfo) {
-    if (platforminfo.os == 'cros') {
+    if (platforminfo.os == 'cros' || true) { //HACK REMOVE
         /* On error: disconnect WebSocket, then log errors */
         var onerror = function(msg, url, line) {
             if (websocket_)
